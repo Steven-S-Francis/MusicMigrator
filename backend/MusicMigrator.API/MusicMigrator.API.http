@@ -1,0 +1,6 @@
+@MusicMigrator.API_HostAddress = http://localhost:5064
+
+GET {{MusicMigrator.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

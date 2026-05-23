@@ -1,0 +1,9 @@
+{
+  "agent_policies": {
+    "shell": {
+      "mode": "trusted",
+      "authorized_commands": ["dotnet", "git", "npm", "npx"],
+      "auto_approve_patterns": [".*dotnet.*", ".*git.*", ".*npm.*"]
+    }
+  }
+}

@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="MusicMigrator.API/MusicMigrator.API.csproj" />
+  <Project Path="MusicMigrator.Core/MusicMigrator.Core.csproj" />
+  <Project Path="MusicMigrator.Providers/MusicMigrator.Providers.csproj" />
+</Solution>
