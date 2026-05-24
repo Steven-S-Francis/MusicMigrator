@@ -27,6 +27,7 @@ builder.Services.AddCors(options =>
     });
 });
 
+builder.Services.AddSingleton<OAuthStateStore>();
 builder.Services.AddSingleton<ITokenStore, InMemoryTokenStore>();
 builder.Services.AddSingleton<IMigrationJobStore, InMemoryMigrationJobStore>();
 builder.Services.AddSingleton<AnghamiPlaywrightWriter>();

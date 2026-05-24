@@ -1,6 +1,6 @@
-using System.Text.Json;
 using MusicMigrator.Core.Interfaces;
 using MusicMigrator.Core.Models;
+using MusicMigrator.Core.Services;
 using MusicMigrator.Providers.Anghami;
 using MusicMigrator.Providers.Spotify;
 using MusicMigrator.Providers.YouTube;
@@ -24,82 +24,79 @@ public static class AuthEndpoints
             });
         });
 
-        group.MapGet("/spotify/start", async (HttpContext ctx, SpotifyAuthHandler auth) =>
+        group.MapGet("/spotify/start", async (HttpContext ctx, SpotifyAuthHandler auth, OAuthStateStore oAuthStateStore) =>
         {
             var state = Guid.NewGuid().ToString();
             var (authUrl, codeVerifier) = auth.BuildAuthorizationUrl(state);
-            var oauthState = new OAuthState("spotify", codeVerifier, "/");
-            ctx.Session.SetString($"oauth_state_{state}", JsonSerializer.Serialize(oauthState));
+            var sessionId = GetOrCreateSession(ctx);
+            oAuthStateStore.Save(state, new OAuthState("spotify", codeVerifier, "/"), sessionId);
             return Results.Redirect(authUrl);
         });
 
         group.MapGet("/spotify/callback", async (
-            HttpContext ctx, string code, string state, ITokenStore tokenStore, SpotifyAuthHandler auth) =>
+            HttpContext ctx, string code, string state, ITokenStore tokenStore,
+            SpotifyAuthHandler auth, OAuthStateStore oAuthStateStore) =>
         {
-            var oauthState = GetOAuthState(ctx, state);
+            var (oauthState, sessionId) = oAuthStateStore.Consume(state);
             if (oauthState is null)
-                return Results.BadRequest("Invalid state parameter.");
+                return Results.BadRequest("Invalid state.");
 
             var (accessToken, refreshToken, expiresAt) =
                 await auth.ExchangeCodeAsync(code, oauthState.CodeVerifier);
 
-            tokenStore.Store(
-                GetOrCreateSession(ctx),
-                "spotify",
+            tokenStore.Store(sessionId!, "spotify",
                 new ProviderToken(accessToken, refreshToken, expiresAt));
 
             return Results.Redirect("http://localhost:5173/?connected=spotify");
         });
 
-        group.MapGet("/youtube/start", async (HttpContext ctx, YouTubeAuthHandler auth) =>
+        group.MapGet("/youtube/start", async (HttpContext ctx, YouTubeAuthHandler auth, OAuthStateStore oAuthStateStore) =>
         {
             var state = Guid.NewGuid().ToString();
             var (authUrl, codeVerifier) = auth.BuildAuthorizationUrl(state);
-            var oauthState = new OAuthState("youtube", codeVerifier, "/");
-            ctx.Session.SetString($"oauth_state_{state}", JsonSerializer.Serialize(oauthState));
+            var sessionId = GetOrCreateSession(ctx);
+            oAuthStateStore.Save(state, new OAuthState("youtube", codeVerifier, "/"), sessionId);
             return Results.Redirect(authUrl);
         });
 
         group.MapGet("/youtube/callback", async (
-            HttpContext ctx, string code, string state, ITokenStore tokenStore, YouTubeAuthHandler auth) =>
+            HttpContext ctx, string code, string state, ITokenStore tokenStore,
+            YouTubeAuthHandler auth, OAuthStateStore oAuthStateStore) =>
         {
-            var oauthState = GetOAuthState(ctx, state);
+            var (oauthState, sessionId) = oAuthStateStore.Consume(state);
             if (oauthState is null)
-                return Results.BadRequest("Invalid state parameter.");
+                return Results.BadRequest("Invalid state.");
 
             var (accessToken, refreshToken, expiresAt) =
                 await auth.ExchangeCodeAsync(code, oauthState.CodeVerifier);
 
-            tokenStore.Store(
-                GetOrCreateSession(ctx),
-                "youtube",
+            tokenStore.Store(sessionId!, "youtube",
                 new ProviderToken(accessToken, refreshToken, expiresAt));
 
             return Results.Redirect("http://localhost:5173/?connected=youtube");
         });
 
-        group.MapGet("/anghami/start", async (HttpContext ctx, AnghamiAuthHandler auth) =>
+        group.MapGet("/anghami/start", async (HttpContext ctx, AnghamiAuthHandler auth, OAuthStateStore oAuthStateStore) =>
         {
             var state = Guid.NewGuid().ToString();
             var (authUrl, codeVerifier) = auth.BuildAuthorizationUrl(state);
-            var oauthState = new OAuthState("anghami", codeVerifier, "/");
-            ctx.Session.SetString($"oauth_state_{state}", JsonSerializer.Serialize(oauthState));
+            var sessionId = GetOrCreateSession(ctx);
+            oAuthStateStore.Save(state, new OAuthState("anghami", codeVerifier, "/"), sessionId);
             return Results.Redirect(authUrl);
         });
 
         group.MapGet("/anghami/callback", async (
-            HttpContext ctx, string code, string state, ITokenStore tokenStore, AnghamiAuthHandler auth) =>
+            HttpContext ctx, string code, string state, ITokenStore tokenStore,
+            AnghamiAuthHandler auth, OAuthStateStore oAuthStateStore) =>
         {
-            var oauthState = GetOAuthState(ctx, state);
+            var (oauthState, sessionId) = oAuthStateStore.Consume(state);
             if (oauthState is null)
-                return Results.BadRequest("Invalid state parameter.");
+                return Results.BadRequest("Invalid state.");
 
             var (accessToken, refreshToken, expiresAt) =
                 await auth.ExchangeCodeAsync(code, oauthState.CodeVerifier);
 
-            tokenStore.Store(
-                GetOrCreateSession(ctx),
-                "anghami",
+            tokenStore.Store(sessionId!, "anghami",
                 new ProviderToken(accessToken, refreshToken, expiresAt));
 
             return Results.Redirect("http://localhost:5173/?connected=anghami");
@@ -124,14 +121,5 @@ public static class AuthEndpoints
         return sessionId;
     }
 
-    private static OAuthState? GetOAuthState(HttpContext ctx, string state)
-    {
-        var key = $"oauth_state_{state}";
-        var json = ctx.Session.GetString(key);
-        if (json is null)
-            return null;
 
-        ctx.Session.Remove(key);
-        return JsonSerializer.Deserialize<OAuthState>(json);
-    }
 }
