@@ -7,12 +7,15 @@ TestResults/
 [Pp]ublish/
 *.nupkg
 appsettings.*.json
+!appsettings.json
+**/appsettings.local.json
 **/secrets.json
 node_modules/
 dist/
 dist-ssr/
 .env
 .env.*
+!.env.example
 .cache/
 *.local
 .DS_Store
