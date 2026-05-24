@@ -34,7 +34,9 @@ builder.Services.AddSingleton<AnghamiPlaywrightWriter>();
 
 builder.Services.AddScoped<IMusicProvider, SpotifyService>();
 builder.Services.AddScoped<IMusicProvider, YouTubeMusicService>();
-builder.Services.AddScoped<IMusicProvider, AnghamiService>();
+// SDK-based: activate when Anghami SDK is available
+// builder.Services.AddScoped<IMusicProvider, AnghamiService>()
+builder.Services.AddScoped<IMusicProvider, AnghamiPlaywrightFullService>();
 builder.Services.AddScoped<ITrackMatcher, FuzzyTrackMatcher>();
 builder.Services.AddScoped<MigrationOrchestrator>();
 builder.Services.AddScoped<SpotifyAuthHandler>();

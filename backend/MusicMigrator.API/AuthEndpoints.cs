@@ -76,30 +76,19 @@ public static class AuthEndpoints
             return Results.Redirect("http://localhost:5173/?connected=youtube");
         });
 
-        group.MapGet("/anghami/start", async (HttpContext ctx, AnghamiAuthHandler auth, OAuthStateStore oAuthStateStore) =>
+        group.MapPost("/anghami/login", async (
+            HttpContext ctx, LoginRequest body, ITokenStore tokenStore, AnghamiPlaywrightWriter writer) =>
         {
-            var state = Guid.NewGuid().ToString();
-            var (authUrl, codeVerifier) = auth.BuildAuthorizationUrl(state);
             var sessionId = GetOrCreateSession(ctx);
-            oAuthStateStore.Save(state, new OAuthState("anghami", codeVerifier, "/"), sessionId);
-            return Results.Redirect(authUrl);
-        });
+            var success = await writer.LoginAsync(body.Email, body.Password);
 
-        group.MapGet("/anghami/callback", async (
-            HttpContext ctx, string code, string state, ITokenStore tokenStore,
-            AnghamiAuthHandler auth, OAuthStateStore oAuthStateStore) =>
-        {
-            var (oauthState, sessionId) = oAuthStateStore.Consume(state);
-            if (oauthState is null)
-                return Results.BadRequest("Invalid state.");
+            if (!success)
+                return Results.Json(new { success = false, error = "Login failed. Check your credentials." }, statusCode: 401);
 
-            var (accessToken, refreshToken, expiresAt) =
-                await auth.ExchangeCodeAsync(code, oauthState.CodeVerifier);
+            tokenStore.Store(sessionId, "anghami",
+                new ProviderToken("playwright-session", null, DateTime.UtcNow.AddHours(8)));
 
-            tokenStore.Store(sessionId!, "anghami",
-                new ProviderToken(accessToken, refreshToken, expiresAt));
-
-            return Results.Redirect("http://localhost:5173/?connected=anghami");
+            return Results.Ok(new { success = true });
         });
 
         group.MapDelete("/{provider}", (HttpContext ctx, string provider, ITokenStore tokenStore) =>
@@ -108,7 +97,7 @@ public static class AuthEndpoints
             tokenStore.Remove(sessionId, provider);
             return Results.Ok();
         });
-    }
+}
 
     private static string GetOrCreateSession(HttpContext ctx)
     {
@@ -120,6 +109,6 @@ public static class AuthEndpoints
         }
         return sessionId;
     }
-
-
 }
+
+public record LoginRequest(string Email, string Password);

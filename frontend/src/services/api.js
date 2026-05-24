@@ -39,3 +39,7 @@ export function getMigrationStatus(jobId) {
 export function getMigrationHistory() {
   return client.get('/migrate').then((r) => r.data)
 }
+
+export function connectAnghami(email, password) {
+  return client.post('/auth/anghami/login', { email, password }).then((r) => r.data)
+}
