@@ -61,6 +61,7 @@ graph TD
 | SpotifyAPI.Web NuGet | latest | Spotify SDK |
 | Google.Apis.YouTube.v3 NuGet | latest | YouTube SDK |
 | Microsoft.Playwright NuGet | latest | Browser automation (Anghami writes) |
+| Anghami Integration | Playwright (Chromium) | Full web automation for login, read, and write |
 
 ## Prerequisites
 
@@ -139,22 +140,7 @@ Fill in `backend/MusicMigrator.API/appsettings.json`:
 
 ### Anghami
 
-The Anghami Developer Portal is not yet publicly open. Access requires contacting the Anghami partnership team via the [SDK GitHub repository](https://github.com/anghami/sdk). Once credentials are granted, register your app and add this redirect URI:
-
-```
-http://localhost:5000/auth/anghami/callback
-```
-
-Fill in `backend/MusicMigrator.API/appsettings.json`:
-
-```json
-"Anghami": {
-  "ClientId": "YOUR_ANGHAMI_CLIENT_ID",
-  "RedirectUri": "http://localhost:5000/auth/anghami/callback"
-}
-```
-
-No client secret is needed for the Anghami PKCE flow.
+Anghami uses credential-based login via Playwright. No API key or client ID is required. Enter your Anghami email and password directly in the Connect Accounts screen. The Developer Portal is not yet publicly open — the SDK-based OAuth implementation is preserved in the codebase and will be activated when API access becomes available.
 
 ## Running the Project
 
@@ -188,7 +174,7 @@ The frontend runs at **http://localhost:5173** and proxies API calls to the back
 
 **User flow:**
 
-1. **Connect accounts** — Authenticate with at least two platforms via OAuth PKCE. Each provider card shows connection status.
+1. **Connect accounts** — Authenticate with at least two platforms via OAuth PKCE. Each provider card shows connection status. Spotify and YouTube use OAuth 2.0 + PKCE. Anghami uses direct credential login via an inline form.
 2. **Select playlist** — Pick a source platform, a destination platform, and the playlist to migrate.
 3. **Watch progress** — The progress page polls the backend every 2 seconds, showing a progress bar, match statistics, and a live table of per-track results.
 
@@ -227,7 +213,7 @@ When a track is migrated, the system first attempts an **ISRC code lookup** (the
 
 ## Known Constraints
 
-- **Anghami writes use Playwright.** The Anghami write API (creating playlists, adding tracks) is not yet publicly available. Until it ships, MusicMigrator automates the Anghami web player (`open.anghami.com`) via Microsoft Playwright headless browser. Read operations use the official SDK API.
+- **Anghami uses Playwright for all operations (login, read, write)** because the official SDK is not yet publicly accessible. The SDK-based implementation is preserved in AnghamiApiClient.cs, AnghamiAuthHandler.cs, and AnghamiService.cs and will replace the Playwright approach when Anghami grants API access.
 - **YouTube tracks have no ISRC.** The YouTube Data API v3 does not expose ISRC codes or album metadata. Track matching for YouTube-sourced tracks relies entirely on title + artist fuzzy matching, which may be less accurate for covers or remixes.
 - **No token refresh automation.** OAuth token refresh logic is implemented in all three auth handlers but is not automatically triggered on 401 responses. A manual reconnect is required if a token expires mid-session. This will be addressed in a future phase.
 - **In-memory state.** All data (tokens, migration jobs) is stored in memory. A server restart clears everything. No database is used in Phase 1.
