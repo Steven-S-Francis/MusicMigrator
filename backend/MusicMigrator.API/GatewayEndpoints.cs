@@ -7,7 +7,11 @@ using MusicMigrator.Providers.YouTube;
 
 namespace MusicMigrator.API;
 
-public record GatewayMigrationRequest(string Cookies, string Sid, string Fingerprint);
+public record GatewayMigrationRequest(
+    string Cookies,
+    string Sid,
+    string Fingerprint,
+    string? YoutubeAccessToken = null);
 
 public class GatewayPlaylistStatus
 {
@@ -57,13 +61,26 @@ public static class GatewayEndpoints
             ITokenStore tokenStore,
             IServiceScopeFactory scopeFactory) =>
         {
-            var sessionId = ctx.Session.GetString("session_id");
-            if (sessionId is null)
-                return Results.Unauthorized();
+            string ytAccessToken;
 
-            var ytToken = tokenStore.Get(sessionId, "youtube");
-            if (ytToken is null || ytToken.IsExpired || ytToken.AccessToken is null)
-                return Results.Json(new { error = "YouTube not connected. Connect YouTube first." }, statusCode: 400);
+            if (!string.IsNullOrEmpty(request.YoutubeAccessToken))
+            {
+                ytAccessToken = request.YoutubeAccessToken;
+            }
+            else
+            {
+                var sessionId = ctx.Session.GetString("session_id");
+                if (sessionId is null)
+                    return Results.Unauthorized();
+
+                var ytToken = tokenStore.Get(sessionId, "youtube");
+                if (ytToken is null || ytToken.IsExpired || ytToken.AccessToken is null)
+                    return Results.Json(
+                        new { error = "YouTube not connected. Provide youtubeAccessToken or connect YouTube first." },
+                        statusCode: 400);
+
+                ytAccessToken = ytToken.AccessToken;
+            }
 
             var jobId = Guid.NewGuid().ToString();
             var status = new GatewayMigrationStatus
@@ -75,6 +92,9 @@ public static class GatewayEndpoints
 
             _gatewayJobs[jobId] = status;
 
+            // Capture token for background task
+            var capturedToken = ytAccessToken;
+
             _ = Task.Run(async () =>
             {
                 await using var scope = scopeFactory.CreateAsyncScope();
@@ -82,7 +102,6 @@ public static class GatewayEndpoints
                 var youtubeService = scope.ServiceProvider.GetRequiredService<YouTubeMusicService>();
                 var loggerFactory = scope.ServiceProvider.GetRequiredService<ILoggerFactory>();
                 var logger = loggerFactory.CreateLogger("GatewayMigration");
-                var ytAccessToken = tokenStore.Get(sessionId, "youtube")?.AccessToken ?? string.Empty;
 
                 try
                 {
@@ -104,7 +123,7 @@ public static class GatewayEndpoints
                                 CancellationToken.None);
 
                             var ytPlaylistId = await youtubeService.CreatePlaylistAsync(
-                                ytAccessToken, playlist.Name, null, CancellationToken.None);
+                                capturedToken, playlist.Name, null, CancellationToken.None);
 
                             var matchedTracks = new List<Track>();
                             foreach (var track in tracks)
@@ -112,7 +131,7 @@ public static class GatewayEndpoints
                                 try
                                 {
                                     var match = await youtubeService.SearchTrackAsync(
-                                        ytAccessToken, track, CancellationToken.None);
+                                        capturedToken, track, CancellationToken.None);
                                     if (match is not null)
                                         matchedTracks.Add(match);
                                 }
@@ -128,7 +147,7 @@ public static class GatewayEndpoints
                             if (matchedTracks.Count > 0)
                             {
                                 await youtubeService.AddTracksAsync(
-                                    ytAccessToken, ytPlaylistId, matchedTracks, CancellationToken.None);
+                                    capturedToken, ytPlaylistId, matchedTracks, CancellationToken.None);
                             }
 
                             status.Playlists[idx].Status = "Completed";
