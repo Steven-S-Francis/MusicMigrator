@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using SpotifyAPI.Web;
 using MusicMigrator.Core.Interfaces;
 using MusicMigrator.Core.Models;
@@ -7,7 +7,7 @@ using Playlist = MusicMigrator.Core.Models.Playlist;
 
 namespace MusicMigrator.Providers.Spotify;
 
-public class SpotifyService : IMusicProvider
+public class SpotifyService(ILogger<SpotifyService> logger) : IMusicProvider
 {
     public string ProviderName => "spotify";
 
@@ -16,42 +16,60 @@ public class SpotifyService : IMusicProvider
 
     public async Task<IEnumerable<Playlist>> GetPlaylistsAsync(string accessToken, CancellationToken ct)
     {
-        var client = CreateClient(accessToken);
-        var request = new PlaylistCurrentUsersRequest { Limit = 50 };
-        var firstPage = await client.Playlists.CurrentUsers(request);
-        var allItems = await client.PaginateAll(firstPage);
+        try
+        {
+            var client = CreateClient(accessToken);
+            var request = new PlaylistCurrentUsersRequest { Limit = 50 };
+            var firstPage = await client.Playlists.CurrentUsers(request);
+            var allItems = await client.PaginateAll(firstPage);
 
-        return allItems.Select(p => new Playlist(
-            Id: p.Id!,
-            Name: p.Name!,
-            Description: p.Description,
-            TrackCount: p.Tracks?.Total ?? 0,
-            CoverUrl: p.Images?.FirstOrDefault()?.Url));
+            return allItems.Select(p => new Playlist(
+                Id: p.Id!,
+                Name: p.Name!,
+                Description: p.Description,
+                TrackCount: p.Tracks?.Total ?? 0,
+                CoverUrl: p.Images?.FirstOrDefault()?.Url));
+        }
+        catch (APIException ex)
+        {
+            logger.LogError(ex, "Spotify GetPlaylistsAsync failed. StatusCode={StatusCode}, Message={Message}",
+                (int)(ex.Response?.StatusCode ?? 0), ex.Message);
+            throw;
+        }
     }
 
     public async Task<IEnumerable<Track>> GetTracksAsync(string accessToken, string playlistId, CancellationToken ct)
     {
-        var client = CreateClient(accessToken);
-        var request = new PlaylistGetItemsRequest();
-        var firstPage = await client.Playlists.GetItems(playlistId, request);
-        var allItems = await client.PaginateAll(firstPage);
+        try
+        {
+            var client = CreateClient(accessToken);
+            var request = new PlaylistGetItemsRequest();
+            var firstPage = await client.Playlists.GetItems(playlistId, request);
+            var allItems = await client.PaginateAll(firstPage);
 
-        return allItems
-            .Where(item => item.Track is FullTrack)
-            .Select(item =>
-            {
-                var ft = (FullTrack)item.Track;
-                string? isrc = null;
-                ft.ExternalIds?.TryGetValue("isrc", out isrc);
+            return allItems
+                .Where(item => item.Track is FullTrack)
+                .Select(item =>
+                {
+                    var ft = (FullTrack)item.Track;
+                    string? isrc = null;
+                    ft.ExternalIds?.TryGetValue("isrc", out isrc);
 
-                return new Track(
-                    Id: ft.Id,
-                    Title: ft.Name,
-                    Artist: string.Join(", ", ft.Artists.Select(a => a.Name)),
-                    Album: ft.Album?.Name,
-                    DurationMs: ft.DurationMs,
-                    IsrcCode: isrc);
-            });
+                    return new Track(
+                        Id: ft.Id,
+                        Title: ft.Name,
+                        Artist: string.Join(", ", ft.Artists.Select(a => a.Name)),
+                        Album: ft.Album?.Name,
+                        DurationMs: ft.DurationMs,
+                        IsrcCode: isrc);
+                });
+        }
+        catch (APIException ex)
+        {
+            logger.LogError(ex, "Spotify GetTracksAsync failed. StatusCode={StatusCode}, Message={Message}",
+                (int)(ex.Response?.StatusCode ?? 0), ex.Message);
+            throw;
+        }
     }
 
     public async Task<string> CreatePlaylistAsync(string accessToken, string name, string? description, CancellationToken ct)
