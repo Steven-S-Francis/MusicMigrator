@@ -26,30 +26,39 @@ public class YouTubeMusicService : IMusicProvider
     public async Task<IEnumerable<Playlist>> GetPlaylistsAsync(string accessToken, CancellationToken ct)
     {
         var service = CreateService(accessToken);
-        var request = service.Playlists.List("snippet,contentDetails");
-        request.Mine = true;
-        request.MaxResults = 50;
-
         var playlists = new List<Playlist>();
-        string? nextPageToken = null;
 
-        do
+        try
         {
-            request.PageToken = nextPageToken;
-            var response = await request.ExecuteAsync(ct);
+            var request = service.Playlists.List("snippet,contentDetails");
+            request.Mine = true;
+            request.MaxResults = 50;
 
-            foreach (var item in response.Items)
+            string? nextPageToken = null;
+
+            do
             {
-                playlists.Add(new Playlist(
-                    Id: item.Id ?? string.Empty,
-                    Name: item.Snippet?.Title ?? string.Empty,
-                    Description: item.Snippet?.Description,
-                    TrackCount: (int)(item.ContentDetails?.ItemCount ?? 0),
-                    CoverUrl: item.Snippet?.Thumbnails?.Default__?.Url));
-            }
+                request.PageToken = nextPageToken;
+                var response = await request.ExecuteAsync(ct);
 
-            nextPageToken = response.NextPageToken;
-        } while (nextPageToken is not null);
+                foreach (var item in response.Items)
+                {
+                    playlists.Add(new Playlist(
+                        Id: item.Id ?? string.Empty,
+                        Name: item.Snippet?.Title ?? string.Empty,
+                        Description: item.Snippet?.Description,
+                        TrackCount: (int)(item.ContentDetails?.ItemCount ?? 0),
+                        CoverUrl: item.Snippet?.Thumbnails?.Default__?.Url));
+                }
+
+                nextPageToken = response.NextPageToken;
+            } while (nextPageToken is not null);
+        }
+        catch (Google.GoogleApiException ex) when (ex.HttpStatusCode == System.Net.HttpStatusCode.NotFound &&
+            ex.Message.Contains("Channel not found", StringComparison.OrdinalIgnoreCase))
+        {
+            // User does not have a YouTube channel — return empty playlists
+        }
 
         return playlists;
     }
