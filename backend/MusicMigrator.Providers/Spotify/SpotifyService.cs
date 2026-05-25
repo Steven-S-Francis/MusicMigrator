@@ -5,6 +5,7 @@ using MusicMigrator.Core.Models;
 using Track = MusicMigrator.Core.Models.Track;
 using Playlist = MusicMigrator.Core.Models.Playlist;
 
+#pragma warning disable CS0618 // external_ids still works; Spotify reverted its removal
 namespace MusicMigrator.Providers.Spotify;
 
 public class SpotifyService(ILogger<SpotifyService> logger) : IMusicProvider
