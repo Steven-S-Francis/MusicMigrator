@@ -21,8 +21,8 @@ public class AnghamiGatewayClient
         string? playlistId = null, params (string Key, string Value)[] extraParams)
     {
         var url = $"gateway.php?type={type}&lang=en&language=en&output=jsonhp" +
-                  $"&fingerprint={Uri.EscapeDataString(fingerprint)}&web2=true" +
-                  $"&sid={Uri.EscapeDataString(sid)}&angh_type={type}";
+                  $"&fingerprint={fingerprint}&web2=true" +
+                  $"&sid={sid}&angh_type={type}";
 
         if (playlistId is not null)
             url += $"&playlistid={playlistId}&buffered=1&extras=";
