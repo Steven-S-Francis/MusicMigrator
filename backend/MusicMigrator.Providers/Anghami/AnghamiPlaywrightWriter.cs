@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Microsoft.Playwright;
 using MusicMigrator.Core.Models;
@@ -11,6 +12,7 @@ public class AnghamiPlaywrightWriter : IAsyncDisposable
     private IBrowser? _browser;
     private readonly object _initLock = new();
     private bool _initialized;
+    private System.Diagnostics.Process? _chromeProcess;
     private List<BrowserContextCookiesResult>? _sessionCookies;
 
     public AnghamiPlaywrightWriter(ILogger<AnghamiPlaywrightWriter> logger)
@@ -31,19 +33,34 @@ public class AnghamiPlaywrightWriter : IAsyncDisposable
         }
 
         _playwright = await Microsoft.Playwright.Playwright.CreateAsync();
-        _browser = await _playwright.Chromium.LaunchAsync(
-            new BrowserTypeLaunchOptions
+
+        var chromePaths = new[]
+        {
+            @"C:\Program Files\Google\Chrome\Application\chrome.exe",
+            @"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+            Path.Combine(
+                Environment.GetFolderPath(
+                    Environment.SpecialFolder.LocalApplicationData),
+                @"Google\Chrome\Application\chrome.exe")
+        };
+
+        var chromePath = chromePaths.FirstOrDefault(File.Exists)
+            ?? throw new InvalidOperationException(
+                "Chrome not found. Please install Google Chrome.");
+
+        _chromeProcess = System.Diagnostics.Process.Start(
+            new ProcessStartInfo
             {
-                Headless = false,
-                SlowMo = 500,
-                Channel = "chrome",
-                Args = new[]
-                {
-                    "--disable-blink-features=AutomationControlled",
-                    "--no-first-run",
-                    "--no-default-browser-check"
-                }
+                FileName = chromePath,
+                Arguments = "--remote-debugging-port=9222 " +
+                            "--no-first-run " +
+                            "--no-default-browser-check",
+                UseShellExecute = false
             });
+
+        await Task.Delay(3000);
+
+        _browser = await _playwright.Chromium.ConnectOverCDPAsync("http://localhost:9222");
     }
 
     public async Task<bool> LoginAsync(string? email = null, string? password = null)
@@ -429,5 +446,11 @@ public class AnghamiPlaywrightWriter : IAsyncDisposable
             await _browser.DisposeAsync();
 
         _playwright?.Dispose();
+
+        if (_chromeProcess is not null)
+        {
+            try { _chromeProcess.Kill(); } catch { }
+            _chromeProcess.Dispose();
+        }
     }
 }
