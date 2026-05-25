@@ -79,20 +79,34 @@ public class AnghamiPlaywrightWriter : IAsyncDisposable
         _initialized = true;
     }
 
-    public void SetSessionCookies(List<CookieInput> cookies)
+    public void SetSessionCookies(string cookieString)
     {
-        _sessionCookies = cookies.Select(c => new BrowserContextCookiesResult
-        {
-            Name = c.Name,
-            Value = c.Value,
-            Domain = c.Domain ?? ".anghami.com",
-            Path = c.Path ?? "/",
-            Secure = true,
-            HttpOnly = false,
-            SameSite = SameSiteAttribute.Lax,
-            Expires = DateTimeOffset.UtcNow.AddDays(30).ToUnixTimeSeconds()
-        }).ToList();
+        var cookies = new List<BrowserContextCookiesResult>();
 
+        foreach (var segment in cookieString.Split(';', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var eqIdx = segment.IndexOf('=');
+            if (eqIdx < 0) continue;
+
+            var name = segment[..eqIdx].Trim();
+            var value = segment[(eqIdx + 1)..].Trim();
+
+            if (string.IsNullOrEmpty(name)) continue;
+
+            cookies.Add(new BrowserContextCookiesResult
+            {
+                Name = name,
+                Value = value,
+                Domain = ".anghami.com",
+                Path = "/",
+                Secure = true,
+                HttpOnly = false,
+                SameSite = SameSiteAttribute.Lax,
+                Expires = DateTimeOffset.UtcNow.AddDays(30).ToUnixTimeSeconds()
+            });
+        }
+
+        _sessionCookies = cookies;
         _logger.LogInformation("Session cookies set: {Count} cookies", _sessionCookies.Count);
     }
 
@@ -415,5 +429,3 @@ public class AnghamiPlaywrightWriter : IAsyncDisposable
         }
     }
 }
-
-public record CookieInput(string Name, string Value, string? Domain = null, string? Path = null);

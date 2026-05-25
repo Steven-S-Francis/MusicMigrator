@@ -4,6 +4,7 @@ using MusicMigrator.Core.Services;
 using MusicMigrator.Providers.Anghami;
 using MusicMigrator.Providers.Spotify;
 using MusicMigrator.Providers.YouTube;
+using System.Text.Json;
 
 namespace MusicMigrator.API;
 
@@ -77,13 +78,13 @@ public static class AuthEndpoints
         });
 
         group.MapPost("/anghami/cookies", async (
-            HttpContext ctx, CookieRequest body, ITokenStore tokenStore, AnghamiPlaywrightWriter writer) =>
+            HttpContext ctx, JsonElement body, ITokenStore tokenStore, AnghamiPlaywrightWriter writer) =>
         {
             var sessionId = GetOrCreateSession(ctx);
-            if (body.Cookies is null || body.Cookies.Count == 0)
-                return Results.Json(new { success = false, error = "No cookies provided." }, statusCode: 400);
+            if (!body.TryGetProperty("cookieString", out var prop) || prop.GetString() is not { Length: > 0 } cookieStr)
+                return Results.Json(new { success = false, error = "No cookieString provided." }, statusCode: 400);
 
-            writer.SetSessionCookies(body.Cookies);
+            writer.SetSessionCookies(cookieStr);
 
             tokenStore.Store(sessionId, "anghami",
                 new ProviderToken("session-cookies", null, DateTime.UtcNow.AddHours(8)));
@@ -110,5 +111,3 @@ public static class AuthEndpoints
         return sessionId;
     }
 }
-
-public record CookieRequest(List<CookieInput> Cookies);

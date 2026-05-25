@@ -9,7 +9,7 @@ const CONFIG = {
 
 export default function ProviderCard({ provider, connected, onStatusChange }) {
   const cfg = CONFIG[provider]
-  const [cookieJson, setCookieJson] = useState('')
+  const [cookieStr, setCookieStr] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -19,11 +19,10 @@ export default function ProviderCard({ provider, connected, onStatusChange }) {
     setLoading(true)
     setError('')
     try {
-      const parsed = JSON.parse(cookieJson)
-      await connectAnghami(parsed)
+      await connectAnghami(cookieStr.trim())
       onStatusChange()
     } catch (e) {
-      setError(e instanceof SyntaxError ? 'Invalid JSON format' : 'Connection failed')
+      setError('Connection failed. Check the cookie string.')
     } finally {
       setLoading(false)
     }
@@ -75,11 +74,14 @@ export default function ProviderCard({ provider, connected, onStatusChange }) {
         </button>
       ) : provider === 'anghami' ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' }}>
-          <textarea
-            rows={4}
-            placeholder='Paste cookies JSON from DevTools&#10;1. Log into open.anghami.com&#10;2. DevTools → Application → Cookies&#10;3. Select all, Copy as JSON&#10;4. Paste here'
-            value={cookieJson}
-            onChange={(e) => setCookieJson(e.target.value)}
+          <div style={{ fontSize: 11, color: '#aaa', maxWidth: 260, textAlign: 'right' }}>
+            DevTools → Network → click any request → Cookie header → Copy value
+          </div>
+          <input
+            type="text"
+            placeholder="resss=...; sss=...; loggedIn=true; ..."
+            value={cookieStr}
+            onChange={(e) => setCookieStr(e.target.value)}
             disabled={loading}
             style={{
               padding: '8px 10px',
@@ -88,22 +90,21 @@ export default function ProviderCard({ provider, connected, onStatusChange }) {
               background: '#222',
               color: '#f0f0f0',
               fontSize: 12,
-              width: 240,
-              resize: 'vertical',
+              width: 280,
               fontFamily: 'monospace',
             }}
           />
           {error && <div style={{ color: '#ff4d4d', fontSize: 11, textAlign: 'right' }}>{error}</div>}
           <button
             onClick={handleAnghamiConnect}
-            disabled={loading || !cookieJson.trim()}
+            disabled={loading || !cookieStr.trim()}
             style={{
               background: cfg.accent,
               border: 'none',
               color: '#fff',
               padding: '6px 18px',
               borderRadius: 8,
-              cursor: loading || !cookieJson.trim() ? 'not-allowed' : 'pointer',
+              cursor: loading || !cookieStr.trim() ? 'not-allowed' : 'pointer',
               fontSize: 14,
               fontWeight: 600,
               opacity: loading ? 0.7 : 1,
