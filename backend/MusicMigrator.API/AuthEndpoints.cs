@@ -25,6 +25,19 @@ public static class AuthEndpoints
             });
         });
 
+        group.MapGet("/token/youtube", (HttpContext ctx, ITokenStore tokenStore) =>
+        {
+            var sessionId = ctx.Session.GetString("session_id");
+            if (sessionId is null)
+                return Results.Unauthorized();
+
+            var token = tokenStore.Get(sessionId, "youtube");
+            if (token is null || token.IsExpired)
+                return Results.NotFound();
+
+            return Results.Ok(new { accessToken = token.AccessToken, expiresAt = token.ExpiresAt });
+        });
+
         group.MapGet("/spotify/start", async (HttpContext ctx, SpotifyAuthHandler auth, OAuthStateStore oAuthStateStore) =>
         {
             var state = Guid.NewGuid().ToString();
