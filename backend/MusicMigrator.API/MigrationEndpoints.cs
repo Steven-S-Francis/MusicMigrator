@@ -1,5 +1,8 @@
 using MusicMigrator.Core.Interfaces;
+using MusicMigrator.Core.Models;
 using MusicMigrator.Core.Services;
+using MusicMigrator.Providers.Spotify;
+using MusicMigrator.Providers.YouTube;
 
 namespace MusicMigrator.API;
 
@@ -19,11 +22,36 @@ public static class MigrationEndpoints
             HttpContext ctx,
             StartMigrationRequest request,
             IMigrationJobStore jobStore,
+            ITokenStore tokenStore,
+            SpotifyAuthHandler spotifyAuth,
+            YouTubeAuthHandler youtubeAuth,
             IServiceScopeFactory scopeFactory) =>
         {
             var sessionId = ctx.Session.GetString("session_id");
             if (sessionId is null)
                 return Results.Unauthorized();
+
+            // Refresh both source and destination tokens before starting the background job
+            foreach (var provider in new[] { request.SourceProvider, request.DestinationProvider })
+            {
+                var token = tokenStore.Get(sessionId, provider);
+                if (token is null)
+                    return Results.Unauthorized();
+
+                if (token.IsExpired && token.RefreshToken is not null)
+                {
+                    var (newAccess, newRefresh, newExpires) = provider.ToLowerInvariant() switch
+                    {
+                        "spotify" => await spotifyAuth.RefreshAsync(token.RefreshToken),
+                        "youtube" => await youtubeAuth.RefreshAsync(token.RefreshToken),
+                        _ => (null, null, DateTime.MinValue)
+                    };
+
+                    if (newAccess is not null)
+                        tokenStore.Store(sessionId, provider,
+                            new ProviderToken(newAccess, newRefresh, newExpires));
+                }
+            }
 
             var job = jobStore.Create(
                 sessionId,

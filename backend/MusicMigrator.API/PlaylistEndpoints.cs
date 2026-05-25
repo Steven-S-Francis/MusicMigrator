@@ -1,4 +1,7 @@
 using MusicMigrator.Core.Interfaces;
+using MusicMigrator.Core.Models;
+using MusicMigrator.Providers.Spotify;
+using MusicMigrator.Providers.YouTube;
 
 namespace MusicMigrator.API;
 
@@ -12,6 +15,8 @@ public static class PlaylistEndpoints
             HttpContext ctx,
             string provider,
             ITokenStore tokenStore,
+            SpotifyAuthHandler spotifyAuth,
+            YouTubeAuthHandler youtubeAuth,
             IEnumerable<IMusicProvider> providers) =>
         {
             var sessionId = ctx.Session.GetString("session_id");
@@ -22,6 +27,8 @@ public static class PlaylistEndpoints
             if (token is null)
                 return Results.Unauthorized();
 
+            token = await RefreshIfExpiredAsync(token, sessionId, provider, tokenStore, spotifyAuth, youtubeAuth);
+
             var matchedProvider = providers.FirstOrDefault(
                 p => p.ProviderName.Equals(provider, StringComparison.OrdinalIgnoreCase));
 
@@ -31,5 +38,31 @@ public static class PlaylistEndpoints
             var playlists = await matchedProvider.GetPlaylistsAsync(token.AccessToken, CancellationToken.None);
             return Results.Ok(playlists);
         });
+    }
+
+    private static async Task<ProviderToken> RefreshIfExpiredAsync(
+        ProviderToken token,
+        string sessionId,
+        string provider,
+        ITokenStore tokenStore,
+        SpotifyAuthHandler spotifyAuth,
+        YouTubeAuthHandler youtubeAuth)
+    {
+        if (!token.IsExpired || token.RefreshToken is null)
+            return token;
+
+        var (newAccess, newRefresh, newExpires) = provider.ToLowerInvariant() switch
+        {
+            "spotify" => await spotifyAuth.RefreshAsync(token.RefreshToken),
+            "youtube" => await youtubeAuth.RefreshAsync(token.RefreshToken),
+            _ => (null, null, DateTime.MinValue)
+        };
+
+        if (newAccess is null)
+            return token;
+
+        var refreshed = new ProviderToken(newAccess, newRefresh, newExpires);
+        tokenStore.Store(sessionId, provider, refreshed);
+        return refreshed;
     }
 }
