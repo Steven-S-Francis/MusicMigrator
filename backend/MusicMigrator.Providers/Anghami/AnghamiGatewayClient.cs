@@ -1,4 +1,3 @@
-using System.Net.Http.Headers;
 using System.Text.Json;
 using MusicMigrator.Core.Models;
 
@@ -16,8 +15,6 @@ public class AnghamiGatewayClient
     public AnghamiGatewayClient(HttpClient httpClient)
     {
         _httpClient = httpClient;
-        httpClient.DefaultRequestHeaders.Accept.Add(
-            new MediaTypeWithQualityHeaderValue("application/json"));
     }
 
     private string BuildUrl(string type, string sid, string fingerprint,
