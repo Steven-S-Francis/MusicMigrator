@@ -27,13 +27,14 @@ public class SpotifyService(ILogger<SpotifyService> logger) : IMusicProvider
                 Id: p.Id!,
                 Name: p.Name!,
                 Description: p.Description,
-                TrackCount: p.Tracks?.Total ?? 0,
+                TrackCount: p.Items?.Total ?? 0,
                 CoverUrl: p.Images?.FirstOrDefault()?.Url));
         }
         catch (APIException ex)
         {
-            logger.LogError(ex, "Spotify GetPlaylistsAsync failed. StatusCode={StatusCode}, Message={Message}",
-                (int)(ex.Response?.StatusCode ?? 0), ex.Message);
+            var body = ex.Response?.Body ?? "(no body)";
+            logger.LogError(ex, "Spotify GetPlaylistsAsync failed. StatusCode={StatusCode}, Body={Body}",
+                (int)(ex.Response?.StatusCode ?? 0), body);
             throw;
         }
     }
@@ -44,7 +45,7 @@ public class SpotifyService(ILogger<SpotifyService> logger) : IMusicProvider
         {
             var client = CreateClient(accessToken);
             var request = new PlaylistGetItemsRequest();
-            var firstPage = await client.Playlists.GetItems(playlistId, request);
+            var firstPage = await client.Playlists.GetPlaylistItems(playlistId, request);
             var allItems = await client.PaginateAll(firstPage);
 
             return allItems
@@ -66,8 +67,9 @@ public class SpotifyService(ILogger<SpotifyService> logger) : IMusicProvider
         }
         catch (APIException ex)
         {
-            logger.LogError(ex, "Spotify GetTracksAsync failed. StatusCode={StatusCode}, Message={Message}",
-                (int)(ex.Response?.StatusCode ?? 0), ex.Message);
+            var body = ex.Response?.Body ?? "(no body)";
+            logger.LogError(ex, "Spotify GetTracksAsync failed. StatusCode={StatusCode}, Body={Body}",
+                (int)(ex.Response?.StatusCode ?? 0), body);
             throw;
         }
     }
@@ -75,13 +77,12 @@ public class SpotifyService(ILogger<SpotifyService> logger) : IMusicProvider
     public async Task<string> CreatePlaylistAsync(string accessToken, string name, string? description, CancellationToken ct)
     {
         var client = CreateClient(accessToken);
-        var user = await client.UserProfile.Current();
         var createRequest = new PlaylistCreateRequest(name)
         {
             Description = description ?? string.Empty,
             Public = false
         };
-        var playlist = await client.Playlists.Create(user.Id, createRequest);
+        var playlist = await client.Playlists.Create(createRequest);
         return playlist.Id!;
     }
 
@@ -93,7 +94,7 @@ public class SpotifyService(ILogger<SpotifyService> logger) : IMusicProvider
         foreach (var batch in uris.Chunk(100))
         {
             var request = new PlaylistAddItemsRequest(batch.ToList());
-            await client.Playlists.AddItems(playlistId, request);
+            await client.Playlists.AddPlaylistItems(playlistId, request);
             await Task.Delay(200, ct);
         }
     }
