@@ -6,6 +6,7 @@ using MusicMigrator.Providers.Spotify;
 using MusicMigrator.Providers.YouTube;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Configuration.AddJsonFile("appsettings.local.json", optional: true, reloadOnChange: true);
 
 builder.Services.AddDistributedMemoryCache();
 builder.Services.AddSession(options =>
