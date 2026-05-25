@@ -77,13 +77,13 @@ public static class AuthEndpoints
         });
 
         group.MapPost("/anghami/login", async (
-            HttpContext ctx, LoginRequest body, ITokenStore tokenStore, AnghamiPlaywrightWriter writer) =>
+            HttpContext ctx, ITokenStore tokenStore, AnghamiPlaywrightWriter writer) =>
         {
             var sessionId = GetOrCreateSession(ctx);
-            var success = await writer.LoginAsync(body.Email, body.Password);
+            var success = await writer.LoginAsync();
 
             if (!success)
-                return Results.Json(new { success = false, error = "Login failed. Check your credentials." }, statusCode: 401);
+                return Results.Json(new { success = false, error = "Login failed." }, statusCode: 401);
 
             tokenStore.Store(sessionId, "anghami",
                 new ProviderToken("playwright-session", null, DateTime.UtcNow.AddHours(8)));
@@ -110,5 +110,3 @@ public static class AuthEndpoints
         return sessionId;
     }
 }
-
-public record LoginRequest(string Email, string Password);

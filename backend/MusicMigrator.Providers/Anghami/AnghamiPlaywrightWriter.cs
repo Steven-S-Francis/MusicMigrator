@@ -31,13 +31,22 @@ public class AnghamiPlaywrightWriter : IAsyncDisposable
         }
 
         _playwright = await Microsoft.Playwright.Playwright.CreateAsync();
-        _browser = await _playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
-        {
-            Headless = true
-        });
+        _browser = await _playwright.Chromium.LaunchAsync(
+            new BrowserTypeLaunchOptions
+            {
+                Headless = false,
+                SlowMo = 500,
+                Channel = "chrome",
+                Args = new[]
+                {
+                    "--disable-blink-features=AutomationControlled",
+                    "--no-first-run",
+                    "--no-default-browser-check"
+                }
+            });
     }
 
-    public async Task<bool> LoginAsync(string email, string password)
+    public async Task<bool> LoginAsync(string? email = null, string? password = null)
     {
         await EnsureInitializedAsync();
 
@@ -46,36 +55,34 @@ public class AnghamiPlaywrightWriter : IAsyncDisposable
         {
             context = await _browser!.NewContextAsync();
             var page = await context.NewPageAsync();
-            await page.GotoAsync("https://open.anghami.com", new PageGotoOptions
+
+            await page.GotoAsync("https://landing.anghami.com", new PageGotoOptions
             {
-                WaitUntil = WaitUntilState.NetworkIdle
+                WaitUntil = WaitUntilState.DOMContentLoaded
             });
 
-            await page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Sign In" }).First.ClickAsync();
-            await page.WaitForTimeoutAsync(1000);
+            _logger.LogInformation("Anghami browser window opened. Waiting for user to log in manually...");
 
-            var emailInput = page.Locator("input[type=\"email\"]").First;
-            await emailInput.FillAsync(email);
-
-            var passwordInput = page.Locator("input[type=\"password\"]").First;
-            await passwordInput.FillAsync(password);
-
-            await page.Locator("button[type=\"submit\"]").First.ClickAsync();
-
-            await page.WaitForURLAsync("**/library**", new PageWaitForURLOptions
+            const int maxIterations = 150; // 5 minutes at 2s per iteration
+            for (int i = 0; i < maxIterations; i++)
             {
-                Timeout = 15000
-            });
+                await page.WaitForTimeoutAsync(2000);
 
-            var cookies = await context.CookiesAsync();
-            _sessionCookies = [.. cookies];
+                if (await page.Locator("a:has-text('Logout')").IsVisibleAsync())
+                {
+                    var cookies = await context.CookiesAsync();
+                    _sessionCookies = [.. cookies];
+                    _logger.LogInformation("Login detected, {Count} cookies captured", _sessionCookies.Count);
+                    return true;
+                }
+            }
 
-            return true;
+            _logger.LogInformation("Login timeout - user did not log in within 5 minutes");
+            return false;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Anghami Playwright login failed");
-            _sessionCookies = null;
+            _logger.LogError(ex, "Anghami manual login error: {Message}", ex.Message);
             return false;
         }
         finally
