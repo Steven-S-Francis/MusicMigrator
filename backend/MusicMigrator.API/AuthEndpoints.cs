@@ -76,17 +76,17 @@ public static class AuthEndpoints
             return Results.Redirect("http://localhost:5173/?connected=youtube");
         });
 
-        group.MapPost("/anghami/login", async (
-            HttpContext ctx, ITokenStore tokenStore, AnghamiPlaywrightWriter writer) =>
+        group.MapPost("/anghami/cookies", async (
+            HttpContext ctx, CookieRequest body, ITokenStore tokenStore, AnghamiPlaywrightWriter writer) =>
         {
             var sessionId = GetOrCreateSession(ctx);
-            var success = await writer.LoginAsync();
+            if (body.Cookies is null || body.Cookies.Count == 0)
+                return Results.Json(new { success = false, error = "No cookies provided." }, statusCode: 400);
 
-            if (!success)
-                return Results.Json(new { success = false, error = "Login failed." }, statusCode: 401);
+            writer.SetSessionCookies(body.Cookies);
 
             tokenStore.Store(sessionId, "anghami",
-                new ProviderToken("playwright-session", null, DateTime.UtcNow.AddHours(8)));
+                new ProviderToken("session-cookies", null, DateTime.UtcNow.AddHours(8)));
 
             return Results.Ok(new { success = true });
         });
@@ -110,3 +110,5 @@ public static class AuthEndpoints
         return sessionId;
     }
 }
+
+public record CookieRequest(List<CookieInput> Cookies);

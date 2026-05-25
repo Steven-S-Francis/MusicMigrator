@@ -40,6 +40,6 @@ export function getMigrationHistory() {
   return client.get('/migrate').then((r) => r.data)
 }
 
-export function connectAnghami() {
-  return client.post('/auth/anghami/login').then((r) => r.data)
+export function connectAnghami(cookies) {
+  return client.post('/auth/anghami/cookies', { cookies }).then((r) => r.data)
 }

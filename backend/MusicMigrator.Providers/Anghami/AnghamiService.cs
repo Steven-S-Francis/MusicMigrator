@@ -34,7 +34,7 @@ public class AnghamiService : IMusicProvider
 
     public async Task<string> CreatePlaylistAsync(string accessToken, string name, string? description, CancellationToken ct)
     {
-        return await _playwrightWriter.CreatePlaylistAsync(accessToken, name, description);
+        return await _playwrightWriter.CreatePlaylistAsync(name, description);
     }
 
     public async Task AddTracksAsync(string accessToken, string playlistId, IEnumerable<Track> tracks, CancellationToken ct)
@@ -43,7 +43,7 @@ public class AnghamiService : IMusicProvider
         {
             try
             {
-                await _playwrightWriter.AddTrackToPlaylistAsync(accessToken, playlistId, track.Id);
+                await _playwrightWriter.AddTrackToPlaylistAsync(playlistId, track.Id);
                 await Task.Delay(500, ct);
             }
             catch (Exception ex)

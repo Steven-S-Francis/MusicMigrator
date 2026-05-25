@@ -29,7 +29,6 @@ public class AnghamiPlaywrightWriter : IAsyncDisposable
         {
             if (_initialized)
                 return;
-            _initialized = true;
         }
 
         _playwright = await Microsoft.Playwright.Playwright.CreateAsync();
@@ -48,65 +47,53 @@ public class AnghamiPlaywrightWriter : IAsyncDisposable
             ?? throw new InvalidOperationException(
                 "Chrome not found. Please install Google Chrome.");
 
+        var profileDir = Path.Combine(Path.GetTempPath(), "MusicMigratorAnghamiProfile");
+        Directory.CreateDirectory(profileDir);
+
         _chromeProcess = System.Diagnostics.Process.Start(
             new ProcessStartInfo
             {
                 FileName = chromePath,
                 Arguments = "--remote-debugging-port=9222 " +
+                            $"--user-data-dir=\"{profileDir}\" " +
                             "--no-first-run " +
                             "--no-default-browser-check",
                 UseShellExecute = false
             });
 
-        await Task.Delay(3000);
-
-        _browser = await _playwright.Chromium.ConnectOverCDPAsync("http://localhost:9222");
+        IBrowser? browser = null;
+        for (int attempt = 0; attempt < 10; attempt++)
+        {
+            try
+            {
+                browser = await _playwright.Chromium.ConnectOverCDPAsync("http://127.0.0.1:9222");
+                break;
+            }
+            catch
+            {
+                if (attempt == 9) throw;
+                await Task.Delay(1000);
+            }
+        }
+        _browser = browser;
+        _initialized = true;
     }
 
-    public async Task<bool> LoginAsync(string? email = null, string? password = null)
+    public void SetSessionCookies(List<CookieInput> cookies)
     {
-        await EnsureInitializedAsync();
-
-        IBrowserContext? context = null;
-        try
+        _sessionCookies = cookies.Select(c => new BrowserContextCookiesResult
         {
-            context = await _browser!.NewContextAsync();
-            var page = await context.NewPageAsync();
+            Name = c.Name,
+            Value = c.Value,
+            Domain = c.Domain ?? ".anghami.com",
+            Path = c.Path ?? "/",
+            Secure = true,
+            HttpOnly = false,
+            SameSite = SameSiteAttribute.Lax,
+            Expires = DateTimeOffset.UtcNow.AddDays(30).ToUnixTimeSeconds()
+        }).ToList();
 
-            await page.GotoAsync("https://landing.anghami.com", new PageGotoOptions
-            {
-                WaitUntil = WaitUntilState.DOMContentLoaded
-            });
-
-            _logger.LogInformation("Anghami browser window opened. Waiting for user to log in manually...");
-
-            const int maxIterations = 150; // 5 minutes at 2s per iteration
-            for (int i = 0; i < maxIterations; i++)
-            {
-                await page.WaitForTimeoutAsync(2000);
-
-                if (await page.Locator("a:has-text('Logout')").IsVisibleAsync())
-                {
-                    var cookies = await context.CookiesAsync();
-                    _sessionCookies = [.. cookies];
-                    _logger.LogInformation("Login detected, {Count} cookies captured", _sessionCookies.Count);
-                    return true;
-                }
-            }
-
-            _logger.LogInformation("Login timeout - user did not log in within 5 minutes");
-            return false;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Anghami manual login error: {Message}", ex.Message);
-            return false;
-        }
-        finally
-        {
-            if (context is not null)
-                await context.DisposeAsync();
-        }
+        _logger.LogInformation("Session cookies set: {Count} cookies", _sessionCookies.Count);
     }
 
     public async Task<List<Playlist>> GetPlaylistsAsync()
@@ -306,27 +293,14 @@ public class AnghamiPlaywrightWriter : IAsyncDisposable
         return _sessionCookies is not null && _sessionCookies.Count > 0;
     }
 
-    public async Task<string> CreatePlaylistAsync(string accessToken, string name, string? description)
+    public async Task<string> CreatePlaylistAsync(string name, string? description)
     {
         await EnsureInitializedAsync();
 
         IBrowserContext? context = null;
         try
         {
-            context = await _browser!.NewContextAsync();
-
-            await context.AddCookiesAsync([
-                new Cookie
-                {
-                    Name = "anghami_access_token",
-                    Value = accessToken,
-                    Domain = ".anghami.com",
-                    Path = "/",
-                    Secure = true,
-                    SameSite = SameSiteAttribute.None
-                }
-            ]);
-
+            context = await CreateAuthenticatedContextAsync();
             var page = await context.NewPageAsync();
             await page.GotoAsync("https://open.anghami.com/library", new PageGotoOptions
             {
@@ -362,27 +336,14 @@ public class AnghamiPlaywrightWriter : IAsyncDisposable
         }
     }
 
-    public async Task AddTrackToPlaylistAsync(string accessToken, string playlistId, string songId)
+    public async Task AddTrackToPlaylistAsync(string playlistId, string songId)
     {
         await EnsureInitializedAsync();
 
         IBrowserContext? context = null;
         try
         {
-            context = await _browser!.NewContextAsync();
-
-            await context.AddCookiesAsync([
-                new Cookie
-                {
-                    Name = "anghami_access_token",
-                    Value = accessToken,
-                    Domain = ".anghami.com",
-                    Path = "/",
-                    Secure = true,
-                    SameSite = SameSiteAttribute.None
-                }
-            ]);
-
+            context = await CreateAuthenticatedContextAsync();
             var page = await context.NewPageAsync();
             await page.GotoAsync($"https://open.anghami.com/song/{songId}", new PageGotoOptions
             {
@@ -454,3 +415,5 @@ public class AnghamiPlaywrightWriter : IAsyncDisposable
         }
     }
 }
+
+public record CookieInput(string Name, string Value, string? Domain = null, string? Path = null);
