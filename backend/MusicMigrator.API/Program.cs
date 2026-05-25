@@ -39,6 +39,7 @@ builder.Services.AddScoped<IMusicProvider, YouTubeMusicService>();
 // builder.Services.AddScoped<IMusicProvider, AnghamiService>()
 builder.Services.AddScoped<IMusicProvider, AnghamiPlaywrightFullService>();
 builder.Services.AddScoped<ITrackMatcher, FuzzyTrackMatcher>();
+builder.Services.AddScoped<YouTubeMusicService>();
 builder.Services.AddScoped<MigrationOrchestrator>();
 builder.Services.AddScoped<SpotifyAuthHandler>();
 builder.Services.AddScoped<YouTubeAuthHandler>();
@@ -49,6 +50,12 @@ builder.Services.AddHttpClient<AnghamiAuthHandler>();
 builder.Services.AddHttpClient<AnghamiApiClient>(client =>
 {
     client.BaseAddress = new Uri("https://sdk.anghami.com");
+    client.DefaultRequestHeaders.Accept.Add(
+        new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
+});
+builder.Services.AddHttpClient<AnghamiGatewayClient>(client =>
+{
+    client.BaseAddress = new Uri("https://coussa.anghami.com");
     client.DefaultRequestHeaders.Accept.Add(
         new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
 });
@@ -66,5 +73,6 @@ app.UseSession();
 app.MapAuthEndpoints();
 app.MapPlaylistEndpoints();
 app.MapMigrationEndpoints();
+app.MapGatewayEndpoints();
 
 app.Run();
