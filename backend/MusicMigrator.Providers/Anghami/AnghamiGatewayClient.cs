@@ -41,7 +41,6 @@ public class AnghamiGatewayClient
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36");
         request.Headers.TryAddWithoutValidation("Referer", "https://play.anghami.com/");
         request.Headers.TryAddWithoutValidation("Origin", "https://play.anghami.com");
-        request.Headers.TryAddWithoutValidation("Accept", "application/json, text/plain, */*");
         return request;
     }
 
@@ -58,7 +57,13 @@ public class AnghamiGatewayClient
         var url = BuildUrl("GETplaylists", sid, fingerprint);
         using var request = CreateRequest(url, cookies);
         var response = await _httpClient.SendAsync(request, ct);
-        response.EnsureSuccessStatusCode();
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var body = await response.Content.ReadAsStringAsync(ct);
+            throw new HttpRequestException(
+                $"Anghami gateway returned {(int)response.StatusCode} ({response.ReasonPhrase}). Body: {body}");
+        }
 
         var content = await response.Content.ReadAsStringAsync(ct);
         var json = ParseResponse(content);
@@ -106,7 +111,13 @@ public class AnghamiGatewayClient
         var url = BuildUrl("GETplaylistdata", sid, fingerprint, playlistId);
         using var request = CreateRequest(url, cookies);
         var response = await _httpClient.SendAsync(request, ct);
-        response.EnsureSuccessStatusCode();
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var body = await response.Content.ReadAsStringAsync(ct);
+            throw new HttpRequestException(
+                $"Anghami gateway returned {(int)response.StatusCode} ({response.ReasonPhrase}). Body: {body}");
+        }
 
         var content = await response.Content.ReadAsStringAsync(ct);
         var json = ParseResponse(content);

@@ -56,6 +56,7 @@ builder.Services.AddHttpClient<AnghamiApiClient>(client =>
 builder.Services.AddHttpClient<AnghamiGatewayClient>(client =>
 {
     client.BaseAddress = new Uri("https://coussa.anghami.com");
+    client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json, text/plain, */*");
 });
 
 builder.Services.AddEndpointsApiExplorer();
